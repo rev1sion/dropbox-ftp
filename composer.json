@@ -1,0 +1,17 @@
+{
+  "name": "drop/box",
+  "description": "Test",
+  "license": "glo",
+  "authors": [
+    {
+      "name": "honus",
+      "email": "honuselles@gmail.com"
+    }
+  ],
+  "require": {
+    "ext-curl": "*",
+    "ext-json": "*",
+    "ext-ftp": "*",
+    "kunalvarma05/dropbox-php-sdk": "^0.2.1"
+  }
+}
