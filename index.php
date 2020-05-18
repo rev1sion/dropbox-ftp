@@ -34,22 +34,33 @@ class MyFiles
 
     function download_file(string $path)
     {
+        /**
+         * @param $path - путь к скачиваемому файлу. Пустая строка считать как рут
+         * @return  - контент или сохраняет в локальную папку и возрващает ссылку к файлу.
+         */
+
+
         $app = new DropboxApp($this->APP_KEY, $this->APP_SECRET, $this->ACCESS_TOKEN);
         $dropbox = new Dropbox($app);
         $file = $dropbox->download($path);
         $contents = $file->getContents();
         @$metadata = $file->getMetadata();
-//    return $contents;
-        $save_path = $GLOBALS['local_path'] . $path;
+        $save_path = $this->local_path . $path;
         file_put_contents($save_path, $contents);
         return $save_path;
     }
 
     function makeDir($path, $ftp_connection)
     {
+        /**
+         * @param $path - путь к папке.
+         * @return  - создать папку если ее нет.
+         */
+
+
         if ($ftp_connection != 0) {
-            @$d = is_dir($path) || mkdir($path);
-            return ftp_mkdir($ftp_connection, $path);
+            @$d = is_dir($this->local_path . $path) || mkdir($this->local_path . $path);
+            return ftp_mkdir($ftp_connection, "/public_html" . $path);
         } else {
             return is_dir($path) || mkdir($path);
         }
@@ -57,6 +68,12 @@ class MyFiles
 
     function get_list_folder($path)
     {
+        /**
+         * @param $path - путь к папке.
+         * парсим ответ дропбокс.
+         * @return  - массив файлов и папок.
+         */
+
         if ($path == "/") {
             $path = "";
         }
@@ -75,7 +92,6 @@ class MyFiles
         ));
         $response = curl_exec($curl);
         curl_close($curl);
-//    $list_files = array_slice(explode('{', $response), 2);
         $list_files = json_decode($response, true)['entries'];
         return array($list_files);
     }
@@ -91,33 +107,34 @@ class MyFiles
 
     function check_files_dropbox($arr, $ftp_connect)
     {
+        /**
+         * @param $arr - массив данных о папках и файлах. Ответ от дропбокс.
+         * если элемент массива папка - создаем папку, если файл отправляем на сервер
+         * @return  - .
+         */
+
+
         foreach ($arr as $item) {
             if ($item['.tag'] == 'folder') {
                 echo "It's folder " . $item['name'] . ", Amigo \n";
-
-//            todo: создать локальную папку
-//            todo: создать ftp папку
-                self::makeDir($GLOBALS['local_path'] . "/" . $item['path_display'], $ftp_connect);
+                self::makeDir($item['path_display'], $ftp_connect);
+                sleep(1); //  ddos
 
                 $n_arr = self::get_list_folder($item['path_display'])[0];
-                self::check_files_dropbox($n_arr, $ftp_connect); // Todo: Check slash
-//            download_folder_zip($download_path . "/" . $item['name'] . "/");
+//                добираемся до дна рекурсируя
+                self::check_files_dropbox($n_arr, $ftp_connect);
             } elseif ($item['.tag'] == 'file') {
                 if ($item['is_downloadable']) {
                     $local_file = self::download_file($item['path_display']);
                     self::upload_file_ftp($ftp_connect, $local_file, $item['path_display']);
+                    sleep(1);
+
 //                unlink($local_file);
 //                todo: проверить без сохранения в локал.
                     echo "Downloaded " . $item['name'] . "\n";
                 } else {
                     echo "i can't download this " . $item['name'] . ". Try export?\n";
-//                $d_file = exporting_file($download_from . "/" . $item['name']); // Todo: добавить скачивание
                 }
-//                todo: удалить если это последний файл
-//            if ($item == end($arr) && $level > 0) {
-////                    todo что то я тут накуалесил
-//                unset($GLOBALS['nested_folders'][$level]);
-//                $level -= 1;
 //            }
             } else {
                 echo "Hmm, what is this?\n";
@@ -127,6 +144,12 @@ class MyFiles
 
     function start_download($dropbox_path)
     {
+        /**
+         * @param $dropbox_path - путь в дропбокс, откуда начать.
+         * пинок
+         * @return  - .
+         */
+
         $root_arr = self::get_list_folder($dropbox_path)[0];
         $conn = ftp_connect($this->FTP_SERVER);
         @$login_result = ftp_login($conn, $this->FTP_USERNAME, $this->FTP_PASS);
@@ -137,91 +160,6 @@ class MyFiles
     }
 
 }
-
-function exporting_file($file)
-{
-    $curl = curl_init();
-
-    curl_setopt_array($curl, array(
-        CURLOPT_URL => "https://content.dropboxapi.com/2/files/export",
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_ENCODING => "",
-        CURLOPT_MAXREDIRS => 10,
-        CURLOPT_TIMEOUT => 0,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-        CURLOPT_CUSTOMREQUEST => "POST",
-        CURLOPT_HTTPHEADER => array(
-            "Authorization: Bearer JDp5Nowy7qAAAAAAAAAAQNemoTLXRDKL0vJX12stvPu6tkh24fxqLjpcSJHz-mrJ",
-            "Content-Type: application/octet-stream",
-            "Dropbox-API-Arg: {\"path\": \"" . $file . "\"}"
-        ),
-    ));
-
-    $response = curl_exec($curl);
-
-    curl_close($curl);
-    return $response;
-}
-
-//function download_file($path)
-//{
-//    $app = new DropboxApp($GLOBALS['APP_KEY'], $GLOBALS['APP_SECRET'], $GLOBALS['APP_TOKEN']);
-//    $dropbox = new Dropbox($app);
-//    $file = $dropbox->download($path);
-//    $contents = $file->getContents();
-//    $metadata = $file->getMetadata();
-////    return $contents;
-//    $save_path = $GLOBALS['local_path'] . $path;
-//    file_put_contents($save_path, $contents);
-//    return $save_path;
-
-//    $curl = curl_init();
-//    curl_setopt_array($curl, array(
-//        CURLOPT_URL => "https://content.dropboxapi.com/2/files/download",
-//        CURLOPT_RETURNTRANSFER => true,
-//        CURLOPT_ENCODING => "",
-//        CURLOPT_MAXREDIRS => 10,
-//        CURLOPT_TIMEOUT => 0,
-//        CURLOPT_FOLLOWLOCATION => true,
-//        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-//        CURLOPT_CUSTOMREQUEST => "POST",
-//        CURLOPT_HEADER => 1,
-//        CURLOPT_HTTPHEADER => array(
-//            "Authorization: Bearer ".$GLOBALS['APP_TOKEN'],
-//            "Content-Type: application/octet-stream",
-//            "Dropbox-API-Arg: {\"path\": \"" . $file . "\"}"
-//        ),
-//    ));
-//    $response = curl_exec($curl);
-//    curl_close($curl);
-//    echo $response;
-//}
-
-//function download_folder_zip($path)
-//{
-//    $path = "/" . $path . "/";
-//    $curl = curl_init();
-//
-//    curl_setopt_array($curl, array(
-//        CURLOPT_URL => "https://content.dropboxapi.com/2/files/download_zip",
-//        CURLOPT_RETURNTRANSFER => true,
-//        CURLOPT_ENCODING => "",
-//        CURLOPT_MAXREDIRS => 10,
-//        CURLOPT_TIMEOUT => 0,
-//        CURLOPT_FOLLOWLOCATION => true,
-//        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-//        CURLOPT_CUSTOMREQUEST => "POST",
-//        CURLOPT_HTTPHEADER => array(
-//            "Authorization: Bearer " . $GLOBALS['APP_TOKEN'],
-//            "Dropbox-API-Arg: {\"path\": \"" . $path . "\"}"
-//        ),
-//    ));
-//
-//    $response = curl_exec($curl);
-//    curl_close($curl);
-//    file_put_contents($GLOBALS['local_path'], $response);
-//}
 
 
 $dropbox_path = "";
